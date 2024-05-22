@@ -1,0 +1,219 @@
+#!/bin/bash
+
+# Helper functions for file-based storage
+save_data_to_file() {
+    local filename="$1"
+    local data="$2"
+
+    if [ -f "$filename" ]; then
+        # Append the new data to the existing file
+        echo "$data" >> "$filename"
+    else
+        # Create a new file with the data
+        echo "$data" > "$filename"
+    fi
+}
+
+read_data_from_file() {
+    local file_path="$1"
+
+    if [ -f "$file_path" ]; then
+        cat "$file_path"
+    else
+        echo ""
+    fi
+}
+
+# Function to create an invoice
+create_invoice() {
+    local duration="$1"
+    local fee="$2"
+    local invoice_number=$((RANDOM % 1000 + 1))
+    local invoice_date=$(date +"%Y-%m-%d")
+
+    local invoice_data="
+-----------------------------------------------------
+Member Name: $member_name
+Member ID: $member_id
+Member Phone: \"$formatted_phone\"
+Membership Duration: $duration months
+Membership Fee: $fee
+Invoice Number: $invoice_number
+Invoice Date: $invoice_date
+-----------------------------------------------------
+"
+    save_data_to_file "invoice_data.txt" "$invoice_data"
+}
+
+
+# Function to add a new member
+add_new_member() {
+    read -p "Enter member name: " member_name
+    read -p "Enter member ID: " member_id
+
+    # Check if the member ID already exists
+    member_data=$(grep "$member_id" "members.txt")
+    if [ -n "$member_data" ]; then
+        echo "Member with ID $member_id already exists in the system."
+        read -p "Do you want to add a new membership for this member? (y/n) " add_membership
+        if [ "$add_membership" = "y" ]; then
+            # Existing member, add new membership
+            read -p "Select new membership duration (3, 6, 9, or 12 months): " new_membership_duration
+            case $new_membership_duration in
+                3)
+                    new_membership_fee=99.99
+                    ;;
+                6)
+                    new_membership_fee=179.99
+                    ;;
+                9)
+                    new_membership_fee=249.99
+                    ;;
+                12)
+                    new_membership_fee=299.99
+                    ;;
+                *)
+                    echo "Invalid membership duration. Please try again."
+                    add_new_member
+                    return
+                    ;;
+            esac
+
+            # Get the existing membership details from the member data
+            IFS=', ' read -ra member_info <<< "$member_data"
+            existing_membership_duration="${member_info[3]}"
+            #existing_membership_fee="${member_info[4]}"
+
+            # Calculate the new total membership duration 
+            if [[ "$existing_membership_duration" =~ ^[0-9]+$ ]]; then
+                new_total_duration=$((existing_membership_duration + new_membership_duration))
+            else
+                new_total_duration=$new_membership_duration
+            fi
+create_invoice "$new_membership_duration" "$new_membership_fee"
+
+            # Update the existing member data in members.txt
+            new_member_data="$member_name, $member_id, \"$formatted_phone\", $new_total_duration"
+            sed -i "/$member_id/d" "members.txt"
+            save_data_to_file "members.txt" "$new_member_data"
+        else
+            echo "Okay, not adding a new membership."
+        fi
+    else
+        # New member
+        local phone_number_pattern='^[0-9]{10}$'
+        while true; do
+        read -p "Enter member phone number: " member_phone
+        if [[ "$member_phone" =~ $phone_number_pattern ]]; then
+            # Format the phone number
+            formatted_phone="${member_phone:0:3}-${member_phone:3:3}-${member_phone:6}"
+        read -p "Select membership duration (3, 6, 9, or 12 months): " membership_duration
+
+        case $membership_duration in
+            3)
+                membership_fee=99.99
+                ;;
+            6)
+                membership_fee=179.99
+                ;;
+            9)
+                membership_fee=249.99
+                ;;
+            12)
+                membership_fee=299.99
+                ;;
+            *)
+                echo "Invalid membership duration. Please try again."
+                add_new_member
+                return
+                ;;
+        esac
+create_invoice "$membership_duration" "$membership_fee"
+        # Save new member data to file
+        local member_data="$member_name, $member_id, \"$formatted_phone\", $membership_duration"
+        save_data_to_file "members.txt" "$member_data"
+        break
+        else
+        echo "Invalid phone number format. Please enter a 10-digit phone number without any dashes or spaces."
+        fi
+        done
+    fi
+}
+
+
+# Function to view member list
+view_member_list() {
+    local member_data=$(read_data_from_file "members.txt")
+    if [ -n "$member_data" ]; then
+        IFS=$','
+        while read -ra member_info; do
+            echo "name:${member_info[0]} ID:${member_info[1]} Phone:${member_info[2]} Membership duration:${member_info[3]}
+---------------------------------------------------------------- "
+        done <<< "$member_data"
+    else
+        echo "No members found."
+    fi
+}
+
+# Function to check membership expiration by member ID
+check_membership_expiration_by_id() {
+    read -p "Enter member ID: " member_id
+    local member_data=$(grep "$member_id" "members.txt")
+    if [ -n "$member_data" ]; then
+        IFS=$','
+        read -ra member_info <<< "$member_data"
+        local member_name="${member_info[0]}"
+        local member_phone="${member_info[2]}"
+        local membership_duration="${member_info[3]}"
+        local invoice_date="${member_info[6]}"
+
+        # Calculate expiration date
+        local expiration_date=$(date -d "$invoice_date + $membership_duration months" +"%Y-%m-%d")
+        local days_left=$(($(date -d "$expiration_date" +"%s") - $(date +"%s")))
+        days_left=$((days_left / 86400))
+
+        echo "Member: $member_name, Phone:\"$member_phone\", Expiration: $expiration_date, Days Left: $days_left"
+
+        if [ "$days_left" -le 7 ]; then
+            echo "
+This is to inform you that the GYJ Gym membership for "$member_name" (Phone: \"$formatted_phone\") will expire in $days_left days. Please make sure to follow up with them regarding membership renewal."
+            
+        fi
+    else
+        echo "Member with ID $member_id not found."
+    fi
+}
+# Manage members menu
+manage_members(){
+while true; do
+        echo "======= Members Management ======="
+        echo "1. Add New Member"
+        echo "2. View Member List"
+        echo "3. Check Membership Expiration"
+        echo "4. Exit"
+
+        read -p "Enter your choice (1-4): " choice
+
+        case $choice in
+            1)
+                add_new_member
+                ;;
+            2)
+                view_member_list
+                ;;
+            3)
+                check_membership_expiration_by_id
+                ;;
+            
+            4)
+                echo "Back to the main menu..."
+                break
+                ;;
+            *)
+                echo "Invalid choice. Please try again."
+                ;;
+        esac
+    done
+
+}
+
