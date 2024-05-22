@@ -434,3 +434,5 @@ main_menu() {
         esac
     done
 }
+
+main_menu
