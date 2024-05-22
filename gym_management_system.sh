@@ -403,3 +403,34 @@ while true; do
         esac
     done
 }
+
+main_menu() {
+    while true; do
+        echo "===== Gym Management System ====="
+        echo "1. Members Management"
+        echo "2. Trainers Management"
+        echo "3. Classes Management"
+        echo "4. Exit"
+
+        read -p "Enter your choice (1-4): " choice
+
+        case $choice in
+            1)
+                manage_members
+                ;;
+            2)
+                manage_trainers
+                ;;
+            3)
+                manage_classes
+                ;;
+            4)
+                echo "Exiting Gym Management System..."
+                break
+                ;;
+            *)
+                echo "Invalid choice. Please try again."
+                ;;
+        esac
+    done
+}
