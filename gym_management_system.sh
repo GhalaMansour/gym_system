@@ -280,3 +280,126 @@ while true; do
         esac
     done
 }
+
+
+validate_date() {
+    local date_str=$1
+    local date_regex='^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+
+    if [[ $date_str =~ $date_regex ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+validate_time() {
+    local time_str=$1
+    local time_regex='^[0-9]{2}\:[0-9]{2}$'
+
+    if [[ $time_str =~ $time_regex ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+validate_day() {
+    local day_str=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+    local days=("monday" "tuesday" "wednesday" "thursday" "friday" "saturday" "sunday")
+
+    for day in "${days[@]}"; do
+        if [[ "$day_str" == "$day" ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+add_class() {
+    read -p "Enter the class name: " class_name
+    while true; do
+        read -p "Enter the day of the week (e.g., Monday, Tuesday, etc.): " class_day
+        if validate_day "$class_day"; then
+            break
+        else
+            echo "Invalid day format. Please enter a valid day of the week."
+        fi
+    done
+
+    while true; do
+        read -p "Enter the time (HH:MM): " class_time
+        if validate_time "$class_time"; then
+            break
+        else
+            echo "Invalid time format. Please use the format HH:MM."
+        fi
+    done
+
+    # Display the list of trainers
+    echo "Select a trainer:"
+    while IFS="," read -r name email phone; do
+        echo "- $name"
+    done < "trainers.txt"
+
+    read -p "Enter the trainer name: " trainer_name
+
+    # Check if the trainer exists
+    if grep -q "$trainer_name" "trainers.txt"; then
+        # Append class details to the schedule file
+        echo "$class_name, $class_day, $class_time, $trainer_name" >> "schedule.txt"
+        echo "Class added to the schedule successfully!"
+    else
+        echo "Trainer not found. Please add the trainer first."
+    fi
+}
+
+view_class_schedule() {
+    local schedule_data=$(cat "schedule.txt")
+    if [ -n "$schedule_data" ]; then
+        # Sort the schedule by day and time
+        sorted_schedule=$(echo "$schedule_data" | sort -k2,2 -k3,3)
+
+        current_day=""
+        while IFS=',' read -r class_name class_day class_time trainer_name; do
+            if [[ "$class_day" != "$current_day" ]]; then
+                echo "====== $class_day ======="
+                current_day="$class_day"
+            fi
+            echo "Class: $class_name"
+            echo "Time: $class_time"
+            echo "Trainer: $trainer_name"
+            echo "---"
+        done <<< "$sorted_schedule"
+    else
+        echo "No classes found in the schedule."
+    fi
+}
+
+# Manage classes menu
+manage_classes(){
+while true; do
+        echo "======= Classes Management ======="
+        echo "1. Add New class"
+        echo "2. View class schedule"
+        echo "3. Exit"
+
+        read -p "Enter your choice (1-3): " choice
+
+        case $choice in
+            1)
+                add_class
+                ;;
+            2)
+                view_class_schedule
+                ;;            
+            3)
+                echo "Back to the main menu..."
+                break
+                ;;
+            *)
+                echo "Invalid choice. Please try again."
+                ;;
+        esac
+    done
+}
